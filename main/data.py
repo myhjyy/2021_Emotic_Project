@@ -4,12 +4,13 @@ import os
 import os.path
 import numpy as np
 import json
+import pickle
 from tqdm import tqdm
 
 test_img = []
 test_label = []
-train_data_num = 500
-test_data_num = 250
+train_data_num = 250
+test_data_num = 100
 # You should input your dataset path
 dataset_path = "/media/unist/29b09bb4-f6d5-47f6-9592-d3e8130e3475/Emotic_Project/CAER-S/" # your own data path that contains 'main/' directory
 
@@ -34,7 +35,7 @@ class train_data():
             for count in tqdm(range(1, train_data_num+1)):
                 image = face_recognition.load_image_file(dataset_path + "dataset/train/{}/{}.png".format(label, str(count).zfill(4)))
                 face_locations = face_recognition.face_locations(image)
-                if (len(face_locations)) != 1:
+                if (len(face_locations)) != 1 or os.path.isfile(dataset_path+"dataset/mesh/train/{}/train_{}_{}.pkl".format(label, label, str(count).zfill(4))) == False:
                     self.error_person[label].append(count)
                     self.error_count += 1
                 else:
@@ -121,6 +122,31 @@ class train_data():
             np.save(dataset_path + "dataset/numpy_data/X_skel_train.npy", X_train_skel)
         print("Make new file success!")
         return X_train_skel
+    
+    def mesh(self):
+        self.train_mesh = []
+        for label in self.labels:
+            for count in range(1, train_data_num+1):
+                contain = False
+                for error in self.error_person[label]:
+                    if error == count:
+                        contain = True
+                if contain:
+                    continue
+                try:
+                    with open(dataset_path+"dataset/mesh/train/{0}/train_{0}_{1}.pkl".format(label, str(count).zfill(4)), "rb") as f:
+                        mesh_data = pickle.load(f, encoding='latin1')
+                        cam_t = mesh_data['cam_t']
+                        pose = mesh_data['pose']
+                        betas = mesh_data['betas']
+                        mesh_data = np.concatenate((cam_t, pose, betas), axis=0)
+                        self.train_mesh = np.append(self.train_mesh, mesh_data)
+                except Exception as e:
+                    print(e)
+                    self.train_mesh = np.append(self.train_mesh, np.zeros(85))
+        X_train_mesh = np.reshape(self.train_mesh, (-1, 85))
+        print("Make mesh data!")
+        return X_train_mesh
 
 # manage test dataset -------------------------------------------------------------- #
 class test_data():
@@ -143,7 +169,7 @@ class test_data():
             for count in tqdm(range(1, test_data_num+1)):
                 image = face_recognition.load_image_file(dataset_path + "dataset/test/{}/{}.png".format(label, str(count).zfill(4)))
                 face_locations = face_recognition.face_locations(image)
-                if (len(face_locations)) != 1:
+                if (len(face_locations)) != 1 or os.path.isfile(dataset_path+"dataset/mesh/test/{}/test_{}_{}.pkl".format(label, label, str(count).zfill(4))) == False:
                     self.error_person[label].append(count)
                     self.error_count += 1
                 else:
@@ -224,6 +250,29 @@ class test_data():
             np.save(dataset_path + "dataset/numpy_data/X_skel_test.npy", X_skel_test)
         print("Make new file success!")
         return X_skel_test
+    
+    def mesh(self):
+        self.test_mesh = []
+        for label in self.labels:
+            for count in range(1, test_data_num+1):
+                contain = False
+                for error in self.error_person[label]:
+                    if error == count:
+                        contain = True
+                if contain:
+                    continue
+                try:
+                    with open(dataset_path+"dataset/mesh/test/{0}/test_{0}_{1}.pkl".format(label, str(count).zfill(4)), "rb") as f:
+                        mesh_data = pickle.load(f, encoding='latin1')
+                        cam_t = mesh_data['cam_t']
+                        pose = mesh_data['pose']
+                        betas = mesh_data['betas']
+                        mesh_data = np.concatenate((cam_t, pose, betas), axis=0)
+                        self.test_mesh = np.append(self.test_mesh, mesh_data)
+                except:
+                    continue
+        X_test_mesh = np.reshape(self.test_mesh, (-1, 85))
+        return X_test_mesh
 #-------------------------------------------------------------------------------- #
 
 # for check img file
